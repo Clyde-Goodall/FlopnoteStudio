@@ -1,7 +1,9 @@
 const std = @import("std");
 const rl =  @import("raylib");
+const scfg = @import("screen.zig");
 const Allocator = std.mem.Allocator;
 const allocator = std.heap.page_allocator;
+const canvas = @import("canvas.zig");
 
 pub const Tool = enum {
     Brush,
@@ -18,7 +20,7 @@ pub const Point = struct {
     x: i32,
     y: i32,
     color: rl.Color = rl.Color.black,
-    brushSize: f32 = 4.0,
+    brushType: canvas.BrushType = .Medium,
 };
 
 pub const Stroke = struct {
@@ -62,12 +64,14 @@ pub const Layer = struct {
 
 pub const ProjectProps = struct {
     // queue for actions for undo/redo would go here
+    canvasMatrix: canvas.CanvasMatrix,
     number: i32,
     frames: std.ArrayList(Frame),
     currentFrame: *Frame,
     currentTool: Tool,
     currentColor: rl.Color,
-    brushSize: f32 = 4,
+    brush: canvas.BrushType,
+
 
     pub fn init(gpa: std.mem.Allocator) !ProjectProps{
         var frames = std.ArrayList(Frame).init(gpa);
@@ -89,12 +93,13 @@ pub const ProjectProps = struct {
         });
 
         return ProjectProps {
+            .canvasMatrix = try canvas.CanvasMatrix.init(scfg.CANVAS_REAL_WIDTH, scfg.CANVAS_REAL_HEIGHT, gpa),
             .number = 5,
             .currentTool = Tool.Brush,
             .frames = frames,
             .currentFrame = &frames.items[0],
             .currentColor = rl.Color.black,
-            .brushSize = 8.0,
+            .brush = canvas.BrushType.Medium,
         };
     }
 
@@ -116,57 +121,61 @@ pub const ProjectProps = struct {
 
     // add drawn points to current open line stroke
     pub fn draw(self: @This(), point: Point) !void {
-        const numStrokes = self.currentFrame.*.currentLayer.*.strokes.items.len - 1;
-        // std.debug.print("strokes: {}", .{lastStroke});
-        try self.currentFrame.*.currentLayer.*.strokes.items[numStrokes].segments.append(point);
+        // const numStrokes = self.currentFrame.*.currentLayer.*.strokes.items.len - 1;
+        // // std.debug.print("strokes: {}", .{lastStroke});
+        // try self.currentFrame.*.currentLayer.*.strokes.items[numStrokes].segments.append(point);
+        try self.canvasMatrix.maskBrushPixels(self.brush, point, self.currentColor);
     }
 
     // draw current open frame in canvas region
+    // pub fn renderFrame(self: @This()) !void {
+    //     var n:usize = 0;
+    //     var m:usize = 0;
+
+    //     while (n < self.currentFrame.layers.items.len): (n+=1) {
+    //         const curr = self.currentFrame.layers.items[n];
+
+    //         // going by strokes/line segments so it's easier to differentiate lines for undo/redo flow as well as render
+    //         // each stroke has a set of points,a nd each layer has a set of strokes, and each layer is within a frame :)
+    //         for(curr.strokes.items) |stroke| {
+    //             // gotta reset the starting point on each stroke or find a way to have a temp null value but I'm lazy and tired
+    //             var prevPoint =  Point{.x = -100.0, .y = -100.0};
+
+    //             while (m < stroke.segments.items.len): (m+=1) {
+    //                 const current = stroke.segments.items[m];
+    //                 // need a jointer/miter w/e to make the lines look connected
+    //                 rl.drawCircle(current.x, current.y, self.brushSize/2, current.color);
+
+    //                 if( 
+    //                     prevPoint.x > 0 and 
+    //                     prevPoint.y > 0 and
+    //                     @sqrt( // distance formula, as readble as I could do at 3am
+    //                         std.math.pow(f32, @floatFromInt(current.x - prevPoint.x), 2) + 
+    //                         std.math.pow(f32, @floatFromInt(current.y - prevPoint.y), 2)
+    //                     ) > self.brushSize / 3
+    //                 )
+    //                     {
+    //                     rl.drawLineEx(
+    //                         rl.Vector2{
+    //                             .x = @floatFromInt(prevPoint.x), 
+    //                             .y = @floatFromInt(prevPoint.y)
+    //                         }, 
+    //                         rl.Vector2{
+    //                             .x = @floatFromInt(current.x), 
+    //                             .y = @floatFromInt(current.y)
+    //                         }, 
+    //                         prevPoint.brushSize,
+    //                         prevPoint.color
+    //                     );
+    //                 } 
+    //                 prevPoint = current;
+    //             }
+    //             // reset point increment counter
+    //             m = 0;
+    //         }
+    //     }
+    // }
     pub fn renderFrame(self: @This()) !void {
-        var n:usize = 0;
-        var m:usize = 0;
-
-        while (n < self.currentFrame.layers.items.len): (n+=1) {
-            const curr = self.currentFrame.layers.items[n];
-
-            // going by strokes/line segments so it's easier to differentiate lines for undo/redo flow as well as render
-            // each stroke has a set of points,a nd each layer has a set of strokes, and each layer is within a frame :)
-            for(curr.strokes.items) |stroke| {
-                // gotta reset the starting point on each stroke or find a way to have a temp null value but I'm lazy and tired
-                var prevPoint =  Point{.x = -100.0, .y = -100.0};
-
-                while (m < stroke.segments.items.len): (m+=1) {
-                    const current = stroke.segments.items[m];
-                    // need a jointer/miter w/e to make the lines look connected
-                    rl.drawCircle(current.x, current.y, self.brushSize/2, current.color);
-
-                    if( 
-                        prevPoint.x > 0 and 
-                        prevPoint.y > 0 and
-                        @sqrt( // distance formula, as readble as I could do at 3am
-                            std.math.pow(f32, @floatFromInt(current.x - prevPoint.x), 2) + 
-                            std.math.pow(f32, @floatFromInt(current.y - prevPoint.y), 2)
-                        ) > self.brushSize / 3
-                    )
-                        {
-                        rl.drawLineEx(
-                            rl.Vector2{
-                                .x = @floatFromInt(prevPoint.x), 
-                                .y = @floatFromInt(prevPoint.y)
-                            }, 
-                            rl.Vector2{
-                                .x = @floatFromInt(current.x), 
-                                .y = @floatFromInt(current.y)
-                            }, 
-                            prevPoint.brushSize,
-                            prevPoint.color
-                        );
-                    } 
-                    prevPoint = current;
-                }
-                // reset point increment counter
-                m = 0;
-            }
-        }
+        _ = self;
     }
 };

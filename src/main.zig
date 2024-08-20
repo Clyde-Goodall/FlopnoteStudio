@@ -8,9 +8,8 @@ const wtf = @import("./wtf.zig");
 
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{ .verbose_log = true }){};
-    defer _ = gpa.deinit();
     const alloc = gpa.allocator();
-    rl.initWindow(scfg.screenWidth, scfg.screenHeight, "Shitnote Studio");
+    rl.initWindow(scfg.screenWidth, scfg.screenHeight, "Flopnote Studio");
     const canvas = ui.FrameGrid(alloc);
     var toolbar = ui.ToolBar(alloc);
     const timeline = ui.Timeline(alloc);
@@ -24,9 +23,11 @@ pub fn main() anyerror!void {
     try toolbar.addChild(&eraser);
     try toolbar.addChild(&paint);
 
-    defer project.deinit();
+    // defers all grouped together for organization :shrug:
+    defer project.deinit(); //unload project momry
+    defer _ = gpa.deinit();
     defer rl.closeWindow(); // Close window and OpenGL context
-    rl.setTargetFPS(120); // Set our game to run at 60 frames-per-second
+    rl.setTargetFPS(120); // Set  120 frames-per-second
 
     // could try making this a default value in struct or at init
     try project.currentFrame.currentLayer.strokes.append(props.Stroke{

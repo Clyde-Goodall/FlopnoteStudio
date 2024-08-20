@@ -12,7 +12,7 @@ const Position = enum {
     BottomRight
 };
 
-const Mouse = struct {
+pub const Mouse = struct {
     x: i32, 
     y: i32
 };
@@ -98,9 +98,9 @@ pub const Component = struct {
         const upperY = self.realHeight() + lowerY;
         // checks upper and lower bounds for mouse/component intersection
         const within = (
-            x >= lowerX and 
-            x <= upperX and 
-            y >= lowerY and 
+            x >= lowerX and
+            x <= upperX and
+            y >= lowerY and
             y <= upperY
         );
         return within;
@@ -384,6 +384,7 @@ pub fn canvasListener(canvas: Component, project: props.ProjectProps, alloc: std
         .x = rl.getMouseX(), 
         .y = rl.getMouseY()
     };
+
     if(try canvas.hasMouseRegion(mouse)) {
         // would be fun to implement keybinding configs from scratch
         try canvasActionDelegator(canvas, project, mouse, alloc);
@@ -392,7 +393,6 @@ pub fn canvasListener(canvas: Component, project: props.ProjectProps, alloc: std
                 .x = mouse.x,
                 .y = mouse.y,
                 .color = project.currentColor,
-                .brushSize = project.brushSize
             };
             try project.draw(point);
         } else if(rl.isMouseButtonReleased(rl.MouseButton.mouse_button_left)) {
@@ -427,7 +427,7 @@ pub fn preDraw(project: props.ProjectProps, mouse: Mouse) !void{
         .x = mouse.x,
         .y = mouse.y,
         .color = project.currentColor,
-        .brushSize = project.brushSize
+        .brushType = project.brush
     };
     try project.draw(point);
 }

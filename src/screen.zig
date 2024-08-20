@@ -29,3 +29,5 @@ pub const TIMELINE_UNIT_H: i32 = 5;
 pub const screenWidth = (SCALAR * (CANVAS_UNIT_W + TOOLBAR_UNIT_W));
 pub const screenHeight = (SCALAR * (TOOLBAR_UNIT_H + TIMELINE_UNIT_H));
 
+pub const CANVAS_REAL_WIDTH = SCALAR * CANVAS_UNIT_W;
+pub const CANVAS_REAL_HEIGHT = SCALAR * CANVAS_UNIT_H;
