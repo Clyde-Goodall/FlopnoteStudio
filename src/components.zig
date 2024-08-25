@@ -3,6 +3,7 @@ const rl = @import("raylib");
 const c = @import("./colors.zig");
 const scfg = @import("./screen.zig");
 const props = @import("./props.zig");
+const canvas = @import("./canvas.zig");
 const Allocator = std.mem.Allocator;
 
 const Position = enum {
@@ -379,22 +380,27 @@ pub fn buttonListener(component: *Component) void {
     }
 }
 
-pub fn canvasListener(canvas: Component, project: props.ProjectProps, alloc: std.mem.Allocator) !void {
+pub fn canvasListener(cvs: Component, project: props.ProjectProps) !void {
     const mouse = Mouse {
         .x = rl.getMouseX(), 
         .y = rl.getMouseY()
     };
-    if(try canvas.hasMouseRegion(mouse)) {
+
+    if(try cvs.hasMouseRegion(mouse)) {
         // would be fun to implement keybinding configs from scratch
-        try canvasActionDelegator(canvas, project, mouse, alloc);
+        // try canvasActionDelegator(cvs, project, mouse, alloc);
         if(rl.isMouseButtonDown(rl.MouseButton.mouse_button_left)) {
             const point = props.Point{
                 .x = mouse.x,
                 .y = mouse.y,
                 .color = project.currentColor,
-                .brushSize = project.brushSize
             };
-            try project.draw(point);
+            // pixel masking call should be in here somewhere
+            try project.currentFrame.currentLayer.matrix.maskBrushPixels(
+                project.brushType, 
+                point, 
+                project.currentColor
+            );
         } else if(rl.isMouseButtonReleased(rl.MouseButton.mouse_button_left)) {
             
         }
@@ -402,8 +408,8 @@ pub fn canvasListener(canvas: Component, project: props.ProjectProps, alloc: std
 }
 
 // picks behavior for user input based on current tool type
-pub fn canvasActionDelegator(canvas: Component, project: props.ProjectProps, mouse: Mouse, alloc: std.mem.Allocator) !void {
-    if(try canvas.hasMouseRegion(mouse)) {
+pub fn canvasActionDelegator(cvs: Component, project: props.ProjectProps, mouse: Mouse, alloc: std.mem.Allocator) !void {
+    if(try cvs.hasMouseRegion(mouse)) {
         if(rl.isMouseButtonDown(rl.MouseButton.mouse_button_left)) {
             switch (project.currentTool) {
                 props.Tool.Brush => try preDraw(project, mouse),
@@ -427,7 +433,6 @@ pub fn preDraw(project: props.ProjectProps, mouse: Mouse) !void{
         .x = mouse.x,
         .y = mouse.y,
         .color = project.currentColor,
-        .brushSize = project.brushSize
     };
     try project.draw(point);
 }

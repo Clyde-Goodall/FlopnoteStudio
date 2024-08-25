@@ -26,6 +26,7 @@ pub const TIMELINE_UNIT_H: i32 = 5;
 // final calculation of window dimensions
 // TODO: logic that takes all vertical/horizontal combinations for all component arrangement, 
 // and chooses the largest sum so there's no clipping
-pub const screenWidth = (SCALAR * (CANVAS_UNIT_W + TOOLBAR_UNIT_W));
-pub const screenHeight = (SCALAR * (TOOLBAR_UNIT_H + TIMELINE_UNIT_H));
-
+pub const screenWidth: f32 = (SCALAR * (CANVAS_UNIT_W + TOOLBAR_UNIT_W));
+pub const screenHeight: f32 = (SCALAR * (TOOLBAR_UNIT_H + TIMELINE_UNIT_H));
+pub const canvasWidth: f32 = (SCALAR * CANVAS_UNIT_W);
+pub const canvasHeight: f32 = (SCALAR * CANVAS_UNIT_H);

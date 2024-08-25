@@ -1,7 +1,10 @@
 const std = @import("std");
 const rl =  @import("raylib");
+const scfg = @import("screen.zig");
+const canvas = @import("canvas.zig");
 const Allocator = std.mem.Allocator;
 const allocator = std.heap.page_allocator;
+
 
 pub const Tool = enum {
     Brush,
@@ -18,7 +21,6 @@ pub const Point = struct {
     x: i32,
     y: i32,
     color: rl.Color = rl.Color.black,
-    brushSize: f32 = 4.0,
 };
 
 pub const Stroke = struct {
@@ -48,6 +50,7 @@ pub const Frame = struct {
 pub const Layer = struct {
     points: std.ArrayList(Point),
     strokes: std.ArrayList(Stroke),
+    matrix: canvas.CanvasMatrix,
     // above: ?*Layer,
     // below: ?*Layer,
 
@@ -62,19 +65,23 @@ pub const Layer = struct {
 
 pub const ProjectProps = struct {
     // queue for actions for undo/redo would go here
+    // width/height in pixels
+    canvasWidth: i32,
+    canvasHeight: i32,
     number: i32,
     frames: std.ArrayList(Frame),
     currentFrame: *Frame,
     currentTool: Tool,
     currentColor: rl.Color,
-    brushSize: f32 = 4,
+    brushType: canvas.BrushType,
 
-    pub fn init(gpa: std.mem.Allocator) !ProjectProps{
+    pub fn init(canvasWidth: i32, canvasHeight: i32, gpa: std.mem.Allocator) !ProjectProps{
         var frames = std.ArrayList(Frame).init(gpa);
         var layers = std.ArrayList(Layer).init(gpa);
         try layers.append(Layer {
             .points = std.ArrayList(Point).init(gpa),
-            .strokes = std.ArrayList(Stroke).init(gpa)
+            .strokes = std.ArrayList(Stroke).init(gpa),
+            .matrix = try canvas.CanvasMatrix.init(canvasWidth, canvasHeight, gpa)
             // .above = null,
             // .below = null
         });
@@ -89,12 +96,14 @@ pub const ProjectProps = struct {
         });
 
         return ProjectProps {
+            .canvasWidth = canvasWidth,
+            .canvasHeight = canvasHeight,
             .number = 5,
             .currentTool = Tool.Brush,
             .frames = frames,
             .currentFrame = &frames.items[0],
             .currentColor = rl.Color.black,
-            .brushSize = 8.0,
+            .brushType = canvas.BrushType.Large,
         };
     }
 
@@ -115,57 +124,44 @@ pub const ProjectProps = struct {
     }
 
     // add drawn points to current open line stroke
-    pub fn draw(self: @This(), point: Point) !void {
-        const numStrokes = self.currentFrame.*.currentLayer.*.strokes.items.len - 1;
-        // std.debug.print("strokes: {}", .{lastStroke});
-        try self.currentFrame.*.currentLayer.*.strokes.items[numStrokes].segments.append(point);
-    }
+    // pub fn draw(self: @This(), point: Point) !void {
+        
+    //     const numStrokes = self.currentFrame.*.currentLayer.*.strokes.items.len - 1;
+    //     // std.debug.print("strokes: {}", .{lastStroke});
+    //     try self.currentFrame.*.currentLayer.*.strokes.items[numStrokes].segments.append(point);
+    // }
 
     // draw current open frame in canvas region
     pub fn renderFrame(self: @This()) !void {
-        var n:usize = 0;
-        var m:usize = 0;
+        // var n:usize = 0;
+        // var m:usize = 0;
+        // std.debug.print("{}\n", .{self.currentFrame.layers.items[0].matrix.field.items[0].items[0].color});
+        const offsetX: i32 = @intCast(@as(i32, scfg.screenWidth - scfg.canvasWidth));
+        const offsetY: i32 = 0;
 
-        while (n < self.currentFrame.layers.items.len): (n+=1) {
+        // while (n < self.currentFrame.layers.items.len): (n+=1) {
+        //     const curr = self.currentFrame.layers.items[n];
+        //     var idxH:usize = 0;
+        //     var idxW:usize = 0;
+        //     while(idxH < curr.matrix.field.items.len): (idxH+=1) {
+        //         while(idxW < curr.matrix.field.items[idxH].items.len): (idxW+=1) {
+        //             const row = curr.matrix.field.items[idxH];
+        //             if(row.items[idxW].active) {
+        //                 rl.drawPixel(@intCast(idxW), @intCast(idxH), row.items[idxW].color);
+        //             }
+        //         }
+        //     }
+        // }
+        for (0..@intCast(self.currentFrame.layers.items.len)) |n| {
             const curr = self.currentFrame.layers.items[n];
 
-            // going by strokes/line segments so it's easier to differentiate lines for undo/redo flow as well as render
-            // each stroke has a set of points,a nd each layer has a set of strokes, and each layer is within a frame :)
-            for(curr.strokes.items) |stroke| {
-                // gotta reset the starting point on each stroke or find a way to have a temp null value but I'm lazy and tired
-                var prevPoint =  Point{.x = -100.0, .y = -100.0};
-
-                while (m < stroke.segments.items.len): (m+=1) {
-                    const current = stroke.segments.items[m];
-                    // need a jointer/miter w/e to make the lines look connected
-                    rl.drawCircle(current.x, current.y, self.brushSize/2, current.color);
-
-                    if( 
-                        prevPoint.x > 0 and 
-                        prevPoint.y > 0 and
-                        @sqrt( // distance formula, as readble as I could do at 3am
-                            std.math.pow(f32, @floatFromInt(current.x - prevPoint.x), 2) + 
-                            std.math.pow(f32, @floatFromInt(current.y - prevPoint.y), 2)
-                        ) > self.brushSize / 3
-                    )
-                        {
-                        rl.drawLineEx(
-                            rl.Vector2{
-                                .x = @floatFromInt(prevPoint.x), 
-                                .y = @floatFromInt(prevPoint.y)
-                            }, 
-                            rl.Vector2{
-                                .x = @floatFromInt(current.x), 
-                                .y = @floatFromInt(current.y)
-                            }, 
-                            prevPoint.brushSize,
-                            prevPoint.color
-                        );
-                    } 
-                    prevPoint = current;
+            for (0..@intCast(curr.matrix.field.items.len)) |idxH| {
+                for(0..@intCast(curr.matrix.field.items[idxH].items.len)) |idxW| {
+                    const row = curr.matrix.field.items[idxH];
+                    if(row.items[idxW].active) {
+                            rl.drawPixel(@intCast(idxW + offsetX), @intCast(idxH + offsetY), row.items[idxW].color);
+                    }
                 }
-                // reset point increment counter
-                m = 0;
             }
         }
     }
