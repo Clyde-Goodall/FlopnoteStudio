@@ -14,6 +14,11 @@ pub const BrushType = enum {
     xLarge,
 };
 
+pub const coord = struct {
+    x: u32,
+    y: u32
+};
+
 pub fn resolveShape(brush: BrushType) BrushStrategy {
     return switch (brush) {
         .xSmall => BrushStrategy{ .brushMatrix = &[1][]const u8{&[1]u8{1}}, .offsetX = 0, .offsetY = 0 },
@@ -105,20 +110,21 @@ pub fn buildMatrix(rSize: i32, cSize: i32, alloc: std.mem.Allocator) !std.ArrayL
 
 pub const CanvasMatrix = struct {
     field: std.ArrayList(std.ArrayList(Pixel)),
+    pixelBuffer: ?coord,
     rowLen: i32,
     colLen: i32,
 
     pub fn init(rows: i32, cols: i32, alloc: std.mem.Allocator) !CanvasMatrix {
         const matrix = CanvasMatrix{
             .field = try buildMatrix(rows, cols, alloc),
+            .pixelBuffer = null,
             .rowLen = rows,
             .colLen = cols,
         };
         return matrix;
     }
 
-    pub fn maskBrushPixels(self: @This(), brush: BrushType, mouse: props.Point, color: rl.Color) !void {
-        // std.debug.print("masking pixels?", .{});
+    pub fn maskBrushPixels(self: @This(), tool: props.Tool, brush: BrushType, mouse: props.Point, color: rl.Color) !void {
         const offsetX: f32 = scfg.screenWidth - scfg.canvasWidth;
         const offsetY: f32 = 0;
         const brushShape = resolveShape(brush);
@@ -126,21 +132,17 @@ pub const CanvasMatrix = struct {
         const yLen: usize = brushShape.brushMatrix[0].len;
         const brushCenterX: usize = (xLen - 1) / 2;
         const brushCenterY: usize = (yLen - 1) / 2;
-
-        // const anchorX: usize = @as(usize, @bitCast(@as(i64, mouse.x - brushShape.offsetX))); // brush outer bounds as per brush height/width specified in brushShape
-        // const anchorY: usize = @as(usize, @bitCast(@as(i64, mouse.y - brushShape.offsetY)));
         const mouseX = @as(u32, @bitCast(mouse.x - @as(i32, offsetX)));
         const mouseY = @as(u32, @bitCast(mouse.y - @as(i32, offsetY)));
+        var visible = true;
+        if(tool == props.Tool.Eraser) {
+            visible = false;
+        } 
 
-        // const width: usize = anchorX + xLen;
-        // const height: usize = anchorY + yLen;
-        // actual brush pixel masking. Doesn't really work yet though.
-        // Just flips the pixel color value to whatever the current brush color value is .
-        // Current idea/method is to iterate over entire pixel field to find where
-        // the brush intersects given brush size + mouse location, and flip the values. Which is a lot of loops.
-        // Only need to take into account component screen offset to get accurate canvas location  on X axis
+        // Just flips the pixel color value to whatever the current brush color value is, or disables if eraser is active
+        // integer overflow is still an issue, and I figure it has something to do with going off-canvas while drawing
+        // and then trying to continue draing.
         // Still need a solution for lines drawn fast
-        // _ = color;
         for(0..@intCast(xLen)) |x| {
             for(0..@intCast(yLen)) |y| {
                 if(brushShape.brushMatrix[x][y] == 1 and 
@@ -149,8 +151,28 @@ pub const CanvasMatrix = struct {
                         (mouseY - brushCenterY) > 0 and 
                         (mouseY + brushCenterY) < self.colLen
                     ) {
-                    try self.field.items[mouseY - brushCenterY + y].items[mouseX - brushCenterX + x].setPixel(color, true);
-                    std.debug.print("\npixel flipped at {}X, {}Y\n", .{ mouseX, mouseY });
+                        const last: ?coord = self.pixelBuffer;
+                        // self.pixelBuffer.append(.coord{.x = mouseX, .y = mouseY});
+                        if(last) |*l| {
+                            // need to figure out if we even need to use bresenham's formula to draw a line
+                            const dx = mouseX - l.x;
+                            const dy = mouseY - l.y;
+                            if(@abs(dx) > brushCenterX or @abs(dy) > brushCenterY) {
+                                const dist = @max(@abs(dx), @abs(dy)); //for however manh pixels thick the brush is, iterate another interpolation from x.0 y.0 to x.1 y.1
+                                for(0..@intCast(xLen)) |unit| {
+                                    // actual linear interpolation implementation;
+                                    for(0..dist) |step| {
+                                        const t: u32 = if(dist == 0)  0 else (@as(u32, @intCast(step / dist))); 
+                                        const iX = lerp(l.x, mouseX, t) - brushCenterY + unit; // x index via lerp calc
+                                        const iY = lerp(l.y, mouseY, t) - brushCenterY + unit; // y
+                                        try self.field.items[iX].items[iY].setPixel(color, visible);
+                                    }
+
+                                }
+                            }
+                        } else {
+                            try self.field.items[mouseY - brushCenterY + y].items[mouseX - brushCenterX + x].setPixel(color, visible);
+                        }
                 }
             }
 
@@ -158,3 +180,7 @@ pub const CanvasMatrix = struct {
 
     }
 };
+
+fn lerp(start: u32, end: u32, t: u32) u32{
+    return start * (1 - t) + t * end;
+}

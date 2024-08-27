@@ -397,38 +397,41 @@ pub fn canvasListener(cvs: Component, project: props.ProjectProps) !void {
             };
             // pixel masking call should be in here somewhere
             try project.currentFrame.currentLayer.matrix.maskBrushPixels(
+                project.currentTool,
                 project.brushType, 
                 point, 
                 project.currentColor
             );
-        } else if(rl.isMouseButtonReleased(rl.MouseButton.mouse_button_left)) {
+        } 
+        // else if(rl.isMouseButtonReleased(rl.MouseButton.mouse_button_left)) {
             
-        }
+        // }
     }
 }
 
 // picks behavior for user input based on current tool type
-pub fn canvasActionDelegator(cvs: Component, project: props.ProjectProps, mouse: Mouse, alloc: std.mem.Allocator) !void {
+pub fn canvasActionDelegator(cvs: Component, project: props.ProjectProps, mouse: Mouse) !void {
     if(try cvs.hasMouseRegion(mouse)) {
         if(rl.isMouseButtonDown(rl.MouseButton.mouse_button_left)) {
             switch (project.currentTool) {
-                props.Tool.Brush => try preDraw(project, mouse),
-                props.Tool.Eraser => try preErase(project, mouse),
-                props.Tool.Paint => try prePaint(project, mouse),
+                props.Tool.Brush => try canvasDraw(project, mouse),
+                props.Tool.Eraser => try canvasDraw(project, mouse),
+                // props.Tool.Paint => try prePaint(project, mouse),
                 else => return
             }
-        } else if(rl.isMouseButtonReleased(rl.MouseButton.mouse_button_left)) {
-            switch (project.currentTool) {
-                props.Tool.Brush => try postDraw(project, alloc),
-                props.Tool.Eraser => try postErase(project, alloc),
-                props.Tool.Paint => try postPaint(project, alloc),
-                else => return
-            }
-        }
+        } 
+        // else if(rl.isMouseButtonReleased(rl.MouseButton.mouse_button_left)) {
+        //     switch (project.currentTool) {
+        //         props.Tool.Brush => try postDraw(project, alloc),
+        //         props.Tool.Eraser => try postErase(project, alloc),
+        //         props.Tool.Paint => try postPaint(project, alloc),
+        //         else => return
+        //     }
+        // }
     }
 }
 // preps input for draw function in ProjectProps
-pub fn preDraw(project: props.ProjectProps, mouse: Mouse) !void{
+pub fn canvasDraw(project: props.ProjectProps, mouse: Mouse) !void{
     const point = props.Point{
         .x = mouse.x,
         .y = mouse.y,
@@ -438,41 +441,26 @@ pub fn preDraw(project: props.ProjectProps, mouse: Mouse) !void{
 }
 
 // adds new line segments group once mouse stops drawing
-pub fn postDraw(project: props.ProjectProps, alloc: std.mem.Allocator) !void {
-    try project.currentFrame.currentLayer.strokes.append(
-        props.Stroke{
-            .segments = std.ArrayList(props.Point).init(alloc)
-        }
-    );
-    // get index of final (current) line stroke arraylist in memory
-    const numStrokes = project.currentFrame.*.currentLayer.*.strokes.items.len - 1;
-    try project.currentFrame.*.currentLayer.*.strokes.items[numStrokes].segments.append(
-        props.Point{
-            .x = -100.0, 
-            .y = -100.0
-        }
-    );
-    std.debug.print("\n end of stroke, appending new segment", .{});
-}
+// pub fn postDraw(project: props.ProjectProps, alloc: std.mem.Allocator) !void {
+//     try project.currentFrame.currentLayer.strokes.append(
+//         props.Stroke{
+//             .segments = std.ArrayList(props.Point).init(alloc)
+//         }
+//     );
+//     // get index of final (current) line stroke arraylist in memory
+//     const numStrokes = project.currentFrame.*.currentLayer.*.strokes.items.len - 1;
+//     try project.currentFrame.*.currentLayer.*.strokes.items[numStrokes].segments.append(
+//         props.Point{
+//             .x = -100.0, 
+//             .y = -100.0
+//         }
+//     );
+//     std.debug.print("\n end of stroke, appending new segment", .{});
+// }
 
-pub fn preErase(project: props.ProjectProps, mouse: Mouse) !void {
+
+pub fn canvasPaint(project: props.ProjectProps, mouse: Mouse) !void {
     _ = project;
     _ = mouse;
-    // TODO
-}
-pub fn postErase(project: props.ProjectProps, alloc: std.mem.Allocator) !void {
-    _ = project;
-    _ = alloc;
-    // TODO
-}
-
-pub fn prePaint(project: props.ProjectProps, mouse: Mouse) !void {
-    _ = project;
-    _ = mouse;
-    // TODO
-}
-pub fn postPaint(project: props.ProjectProps, alloc: std.mem.Allocator) !void {
-    _ = project;
-    _ = alloc;
     // TODO
 }
