@@ -14,7 +14,8 @@ pub const Tool = enum {
     Select,
     Canvas,
     Toolbar,
-    Timeline
+    Timeline,
+    TimelineFrame,
 };
 
 pub const Point = struct {
@@ -103,7 +104,7 @@ pub const ProjectProps = struct {
             .frames = frames,
             .currentFrame = &frames.items[0],
             .currentColor = rl.Color.black,
-            .brushType = canvas.BrushType.Large,
+            .brushType = canvas.BrushType.Oval,
         };
     }
 

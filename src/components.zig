@@ -21,12 +21,12 @@ const Mouse = struct {
 pub const Component = struct { 
     allocator: std.mem.Allocator,
     tool: props.Tool,
-    unitWidth: i32,
-    unitHeight: i32,
+    unitWidth: i32, // in scale units
+    unitHeight: i32, // in scale units
     fillColor: rl.Color,
     position: Position,
-    altX: i32 = 0,
-    altY: i32 = 0,
+    altX: i32 = 0, // X offset/start position of rect draw coords in scale units, optional.
+    altY: i32 = 0, //Y offset/start pos of rect ^^
     parent: ?*Component = null,
     children: std.ArrayList(*Component),
     active: bool = false,
@@ -34,7 +34,7 @@ pub const Component = struct {
     // customDraw: ?*const fn(component: Component) void,
     // hierarchical nodes would be nice in the future especially for component grouping.
 
-    // bow with function pointer for more granular draw instruction
+    // function pointer for custom draw instruction would be nice
     pub fn init(
         tool: props.Tool, 
         unitHeight: i32,
@@ -43,11 +43,10 @@ pub const Component = struct {
         position: Position,
         parent: ?*Component,
         alloc: std.mem.Allocator,
-        altX: ?i32,
+        altX: ?i32,  
         altY: ?i32,
         // customDraw: ?*const fn(component: Component) void,
     )  !Component{
-        std.debug.print("\nx: {} y: {}\n", .{altX.?, altY.?});
         const component = Component {
             .allocator = alloc,
             .parent = if(@TypeOf(parent) == Component) parent else null,
@@ -110,17 +109,17 @@ pub const Component = struct {
     pub fn childClickListener(self: *@This(), project: *props.ProjectProps) !void  {
         for(self.children.items) |child| {
             const mouse = .{.x = rl.getMouseX(), .y = rl.getMouseY()};
-                if(try child.hasMouseRegionExact(mouse)) {
-                            // would be fun to implement keybinding configs from scratch
-                    if(rl.isMouseButtonDown(rl.MouseButton.mouse_button_left)) {
-                        child.toggleActive(true);
-                    } else if(rl.isMouseButtonReleased(rl.MouseButton.mouse_button_left)) {
-                        child.toggleActive(false);
-                        self.toggleCurrentFocus(child.tool);
-                        try project.*.changeTool(child.tool);
-                        std.debug.print("\n active tool: {}", .{project.*.currentTool});
-                    }
+            if(try child.hasMouseRegionExact(mouse)) {
+                        // would be fun to implement keybinding configs from scratch
+                if(rl.isMouseButtonDown(rl.MouseButton.mouse_button_left)) {
+                    child.toggleActive(true);
+                } else if(rl.isMouseButtonReleased(rl.MouseButton.mouse_button_left)) {
+                    child.toggleActive(false);
+                    self.toggleCurrentFocus(child.tool);
+                    try project.*.changeTool(child.tool);
+                    std.debug.print("\n active tool: {}", .{project.*.currentTool});
                 }
+            }
         }
     }
  
@@ -202,7 +201,13 @@ pub const Component = struct {
             while ( m < self.unitWidth): (m += 2) { 
                 const x_offset_modifier: i32 = if (offset_switch)  (scfg.SCALE_SIZE * scfg.CLUSTER_SIZE) else 0; 
                 const anchor_x_curr_block: i32 = self.unitAnchorX() + (m * scfg.SCALE_SIZE * scfg.CLUSTER_SIZE) + x_offset_modifier;
-                rl.drawRectangle(anchor_x_curr_block, anchor_y_curr_block, scfg.SCALAR, scfg.SCALAR, c.palette.LIGHT_GREY);
+                rl.drawRectangle(
+                    anchor_x_curr_block, 
+                    anchor_y_curr_block, 
+                    scfg.SCALAR, 
+                    scfg.SCALAR, 
+                    c.palette.LIGHT_GREY
+                    );
             }
             m = 0;
             offset_switch = !offset_switch;
@@ -224,7 +229,6 @@ pub fn FrameGrid(alloc: std.mem.Allocator) Component {
         0
         // *drawBrushTool,
     );
-
     return region;
 }
 // left-hand tools
@@ -239,7 +243,6 @@ pub fn ToolBar(alloc: std.mem.Allocator) Component {
         alloc,
         0,
         0
-
         // &drawBrushTool,
     );
     return region;
@@ -297,6 +300,48 @@ pub fn Paint(alloc: std.mem.Allocator) Component {
     return region;
 }
 
+pub fn TimelineFrame(alloc: std.mem.Allocator) Component {
+    const region = try Component.init(
+        .TimelineFrame,
+        2,
+        3,
+        rl.Color.white,
+        Position.TopLeft,
+        null,
+        alloc,
+        1,
+        1
+    );
+    return region;
+}
+
+// Drawing region of scrollable frames. 
+// Currently not sure how to approach the scrolling and focus-based x-axis shifting.
+// Will need focus-based highlighting
+// At the cost of UX ergonomics, I could have a hotkey-triggered overlay that
+//  hides other elements to provide a more DSi-like experience when moving through frames.
+// Sort of an approximation of top-screen UI under certain conditions for specific features.
+// It would be cool from a technical standpoint but would potentially be no better than 
+//  anchoring to where it currently reside with a scrollable list of frames. 
+// It would give it more space and room for tools though....
+pub fn  drawTimelineFrames(component: Component) void {
+    for(component.children.items) |child| {
+        const frame = child.*;
+        const rect = rl.Rectangle{
+            .x = @floatFromInt(child.altX * scfg.SCALAR), 
+            .y = @floatFromInt(child.altY * scfg.SCALAR),
+            .width = @floatFromInt(frame.unitWidth * scfg.SCALAR),
+            .height = @floatFromInt(frame.unitHeight * scfg.SCALAR),
+        };
+        rl.drawRectangleRounded(
+            rect,
+            0.35,
+            30,
+            frame.fillCOlor,
+        );
+    }
+}
+
 // tool visual state changing
 pub fn drawToolItems(component: Component) void {
     // all children of parent component i.e. toolbar
@@ -343,10 +388,7 @@ pub fn drawToolItems(component: Component) void {
             fill,
         );
     }
-    
 }
-
-
 
 pub fn Timeline(alloc: std.mem.Allocator) Component {
     const region = try Component.init(
@@ -420,14 +462,6 @@ pub fn canvasActionDelegator(cvs: Component, project: props.ProjectProps, mouse:
                 else => return
             }
         } 
-        // else if(rl.isMouseButtonReleased(rl.MouseButton.mouse_button_left)) {
-        //     switch (project.currentTool) {
-        //         props.Tool.Brush => try postDraw(project, alloc),
-        //         props.Tool.Eraser => try postErase(project, alloc),
-        //         props.Tool.Paint => try postPaint(project, alloc),
-        //         else => return
-        //     }
-        // }
     }
 }
 // preps input for draw function in ProjectProps
@@ -439,25 +473,6 @@ pub fn canvasDraw(project: props.ProjectProps, mouse: Mouse) !void{
     };
     try project.draw(point);
 }
-
-// adds new line segments group once mouse stops drawing
-// pub fn postDraw(project: props.ProjectProps, alloc: std.mem.Allocator) !void {
-//     try project.currentFrame.currentLayer.strokes.append(
-//         props.Stroke{
-//             .segments = std.ArrayList(props.Point).init(alloc)
-//         }
-//     );
-//     // get index of final (current) line stroke arraylist in memory
-//     const numStrokes = project.currentFrame.*.currentLayer.*.strokes.items.len - 1;
-//     try project.currentFrame.*.currentLayer.*.strokes.items[numStrokes].segments.append(
-//         props.Point{
-//             .x = -100.0, 
-//             .y = -100.0
-//         }
-//     );
-//     std.debug.print("\n end of stroke, appending new segment", .{});
-// }
-
 
 pub fn canvasPaint(project: props.ProjectProps, mouse: Mouse) !void {
     _ = project;
