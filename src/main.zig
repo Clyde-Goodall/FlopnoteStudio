@@ -9,16 +9,11 @@ pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{ .verbose_log = true }){};
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
-    rl.initWindow(scfg.screenWidth, scfg.screenHeight, "Shitnote Studio"); // screen height/width seems to work normally here, but canvas doesn't
+    rl.initWindow(scfg.screenWidth, scfg.screenHeight, "Flopnote Studio"); // screen height/width seems to work normally here, but canvas doesn't
     const canvas = ui.FrameGrid(alloc);
     var toolbar = ui.ToolBar(alloc);
     const timeline = ui.Timeline(alloc);
     var project = try props.ProjectProps.init(scfg.canvasWidth, scfg.canvasHeight, alloc);
-    std.debug.print("\nscreen -> width:{}px height:{}px\n", .{ scfg.screenWidth, scfg.screenHeight });
-    std.debug.print("\ncanvas matrix size -> w:{}, h:{} \n", .{ 
-        project.currentFrame.currentLayer.matrix.field.items.len, 
-        project.currentFrame.currentLayer.matrix.field.items[0].items.len 
-    });
 
     // tool options init
     var brush = ui.Brush(alloc);
